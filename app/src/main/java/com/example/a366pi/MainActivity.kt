@@ -1,37 +1,34 @@
 package com.example.a366pi
 
 import android.os.Bundle
-import android.provider.MediaStore
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
+//import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
-//import androidx.compose.ui.text.font.FontFamily.Companion.Monospace
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.a366pi.ui.theme._366piTheme
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -40,69 +37,54 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
+
                     val pageState = remember { mutableIntStateOf(0) }
                     var username by remember { mutableStateOf("") }
                     var password by remember { mutableStateOf("") }
+                    var passwordVisible by remember { mutableStateOf(false) }
                     var name by remember { mutableStateOf("") }
                     var confirmPassword by remember { mutableStateOf("") }
-                    var dob by remember { mutableStateOf("") }
-                    val profilePhotoState = remember { mutableStateOf<ImageBitmap?>(null) }
                     val context = LocalContext.current
-
-                    // Image Picker
-                    val pickImageLauncher = rememberLauncherForActivityResult(
-                        contract = ActivityResultContracts.GetContent()
-                    ) { uri ->
-                        uri?.let {
-                            val bitmap = MediaStore.Images.Media.getBitmap(context.contentResolver, it)
-                            profilePhotoState.value = bitmap.asImageBitmap()
-                        }
-                    }
-
-                    // Camera Option
-                    val takePictureLauncher = rememberLauncherForActivityResult(
-                        contract = ActivityResultContracts.TakePicturePreview()
-                    ) { bitmap ->
-                        bitmap?.let {
-                            profilePhotoState.value = it.asImageBitmap()
-                        }
-                    }
-
+                    val scope = rememberCoroutineScope()
+                    val db = DatabaseBuilder.getInstance(context)
+                    val userDao = db.userDao()
                     var errorMessage by remember { mutableStateOf("") }
+                    val namePattern = Regex("^[a-zA-Z ]*$")
 
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.Center,
-//                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        when (pageState.value) {
-                            0 -> {
-                                var passwordChecker by remember {
-                                    mutableStateOf("")
-                                }
-                                var usernameChecker by remember {
-                                    mutableStateOf("")
-                                }
-                                Text(
-                                    text = "Welcome to",
-                                    fontSize = 45.sp,
-                                )
+
+                    LaunchedEffect(errorMessage) {
+                        if (errorMessage.isNotEmpty()) {
+                            delay(3000)
+                            errorMessage = ""
+                        }
+                    }
+
+                    when (pageState.intValue) {
+
+                        // LoginPage
+                        0 -> {
+                            var passwordChecker by remember { mutableStateOf("") }
+                            var usernameChecker by remember { mutableStateOf("") }
+
+                            // loginPage - column
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.Center
+                            ) {
+
+                                // loginPage - column - welcomeText
+                                Text(text = "Welcome to", fontSize = 45.sp)
                                 Text(
                                     text = "366pi",
                                     fontSize = 45.sp,
                                     modifier = Modifier.padding(vertical = 16.dp)
                                 )
-
                                 Spacer(modifier = Modifier.height(28.dp))
 
-                                // Username input
-                                Text(
-                                    text = "Username",
-                                    fontSize = 24.sp
-                                )
-                                TextField(
+                                // loginPage - column - username
+                                OutlinedTextField(
                                     value = usernameChecker,
                                     onValueChange = { newUsername ->
                                         usernameChecker = newUsername
@@ -111,15 +93,10 @@ class MainActivity : ComponentActivity() {
                                     modifier = Modifier.fillMaxWidth(),
                                     label = { Text(text = "Enter your Username") }
                                 )
-
                                 Spacer(modifier = Modifier.height(16.dp))
 
-                                // Password input
-                                Text(
-                                    text = "Password",
-                                    fontSize = 24.sp
-                                )
-                                TextField(
+                                // loginPage - column - password
+                                OutlinedTextField(
                                     value = passwordChecker,
                                     onValueChange = { newPassword ->
                                         passwordChecker = newPassword
@@ -127,9 +104,25 @@ class MainActivity : ComponentActivity() {
                                     },
                                     modifier = Modifier.fillMaxWidth(),
                                     label = { Text(text = "Enter your Password") },
-                                    visualTransformation = PasswordVisualTransformation()
+                                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                    trailingIcon = {
+                                        val image =
+                                            if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
+                                        val description =
+                                            if (passwordVisible) "Hide password" else "Show password"
+
+                                        IconButton(onClick = {
+                                            passwordVisible = !passwordVisible
+                                        }) {
+                                            Icon(
+                                                imageVector = image,
+                                                contentDescription = description
+                                            )
+                                        }
+                                    }
                                 )
 
+                                // loginPage - column - errorMessage
                                 if (errorMessage.isNotEmpty()) {
                                     Text(
                                         text = errorMessage,
@@ -137,301 +130,360 @@ class MainActivity : ComponentActivity() {
                                         modifier = Modifier.padding(vertical = 8.dp)
                                     )
                                 }
-
                                 Spacer(modifier = Modifier.height(24.dp))
 
-                                // Row for Login and Sign Up buttons
+                                // loginPage - column - row
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
+
+                                    // loginPage - column - row - loginButton
                                     Button(
                                         onClick = {
-                                            if (usernameChecker.isEmpty() || passwordChecker.isEmpty()) {
-                                                errorMessage = "Please enter your username and password"
-                                            }
-                                            else if (usernameChecker!=username || passwordChecker!=password) {
-                                                errorMessage = "Please enter correct username and password"
-                                            }
-                                            else {
-                                                pageState.value = 1
+                                            if (usernameChecker.isEmpty()) {
+                                                errorMessage = "Please enter your username"
+                                            } else if (passwordChecker.isEmpty()) {
+                                                errorMessage = "Please enter your password"
+                                            } else {
+                                                scope.launch {
+                                                    val user =
+                                                        userDao.getUserByUsername(usernameChecker)
+                                                    if (user == null) {
+                                                        errorMessage = "User does not exist"
+                                                    } else if (user.password != passwordChecker) {
+                                                        errorMessage = "Incorrect password"
+                                                    } else {
+                                                        username = user.username
+                                                        name = user.name
+                                                        pageState.intValue = 1
+                                                    }
+                                                }
                                             }
                                         },
                                         modifier = Modifier.weight(1f)
                                     ) {
                                         Text(text = "Login")
                                     }
-
                                     Spacer(modifier = Modifier.width(16.dp))
 
+                                    // loginPage - column - row - signupButton
                                     Button(
-                                        onClick = { pageState.value = 2 },
+                                        onClick = { pageState.intValue = 2 },
                                         modifier = Modifier.weight(1f)
                                     ) {
                                         Text(text = "Sign Up")
                                     }
                                 }
                             }
-                            1 -> {
-                                // Welcome Screen
-                                val configuration = LocalConfiguration.current
-                                val screenWidth = configuration.screenWidthDp.dp
-                                val imageSize = screenWidth / 3
-                                Column(
-                                    modifier = Modifier.fillMaxSize(),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
+                        }
+
+                        // Welcome Screen
+                        1 -> {
+
+                            // welcome - column
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                // welcome - column - row1 - text
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(top = 16.dp, start = 16.dp)
                                 ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.padding(16.dp)
-                                    ) {
-                                        Text(
-                                            text = "Hello, $name!",
-                                            style = MaterialTheme.typography.headlineLarge.copy(fontFamily = FontFamily.Monospace),
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        profilePhotoState.value?.let {
-                                            Image(
-                                                bitmap = it,
-                                                contentDescription = null,
-                                                modifier = Modifier
-                                                    .size(imageSize)
-                                                    .clip(CircleShape)
-                                            )
-                                        }
-                                    }
-
-                                    Row {
-                                        Button(
-                                            onClick = {},
-                                            modifier = Modifier
-                                                .weight(0.5f)
-                                                .fillMaxWidth()
-                                        ) {
-                                            Text(text = username)
-                                        }
-
-                                        Spacer(modifier = Modifier.width(16.dp))
-
-                                        Button(
-                                            onClick = {},
-                                            modifier = Modifier
-                                                .weight(0.5f)
-                                                .fillMaxWidth()
-                                        ) {
-                                            if (dob.isEmpty()){
-                                                Text(text = "D.O.B")
-                                            }
-                                            else{
-                                                Text(text = dob)
-                                            }
-                                        }
-                                    }
-                                    Row {
-                                        Button(
-                                            onClick = {
-                                                pageState.value=0
-                                            },
-                                            modifier = Modifier
-                                                .weight(0.5f)
-                                                .fillMaxWidth()
-                                        ) {
-                                            Text(text = "Logout")
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.height(24.dp))
-
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .background(color = Color.DarkGray)
-                                            .padding(16.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = "Write Your Important Notes Here",
-                                            color = Color.White
-                                        )
-                                    }
+                                    Text(
+                                        text = "Hello, $name!",
+                                        style = MaterialTheme.typography.headlineLarge.copy(
+                                            fontFamily = FontFamily.Monospace,
+                                            color = MaterialTheme.colorScheme.primary
+                                        ),
+                                        modifier = Modifier.weight(1f)
+                                    )
                                 }
-                            }
-                            2 -> {
-                                // SignUp Screen
-                                errorMessage=""
+                                Spacer(modifier = Modifier.height(24.dp))
 
-                                Text(
-                                    text = "Profile Photo",
-                                    fontSize = 24.sp,
-                                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                                )
-                                profilePhotoState.value?.let { image ->
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(16.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Image(
-                                            bitmap = image,
-                                            contentDescription = null,
-                                            modifier = Modifier
-                                                .size(128.dp)
-                                                .clip(CircleShape)
-                                        )
-                                    }
-                                }
+                                // welcome - column - row2
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceEvenly
                                 ) {
-                                    Button(onClick = { pickImageLauncher.launch("image/*") }) {
-                                        Text(text = "Gallery")
+
+                                    // welcome - column - row2 - button1
+                                    Button(
+                                        onClick = { },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .padding(8.dp),
+                                        shape = RoundedCornerShape(12.dp),
+                                        elevation = ButtonDefaults.buttonElevation(6.dp)
+                                    ) {
+                                        Text(text = "My Profile")
                                     }
-                                    Button(onClick = { takePictureLauncher.launch(null) }) {
-                                        Text(text = "Camera")
+                                    Spacer(modifier = Modifier.width(16.dp))
+
+                                    // welcome - column - row2 - button2
+                                    Button(
+                                        onClick = { },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .padding(8.dp),
+                                        shape = RoundedCornerShape(12.dp),
+                                        elevation = ButtonDefaults.buttonElevation(6.dp)
+                                    ) {
+                                        Text(text = "@$username")
                                     }
                                 }
-
                                 Spacer(modifier = Modifier.height(16.dp))
 
-                                Column(
-                                    modifier = Modifier.fillMaxSize()
+                                // welcome - column - row3
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceEvenly
                                 ) {
-                                    Text(
-                                        text = "Name",
-                                        fontSize = 24.sp,
+
+                                    // welcome - column - row3 - logoutButton
+                                    Button(
+                                        onClick = {pageState.intValue = 0},
                                         modifier = Modifier
-                                            .padding(start = 6.dp)
-                                            .fillMaxWidth()
-                                            .align(Alignment.Start)
-                                    )
-                                    TextField(
-                                        value = name,
-                                        onValueChange = { newName ->
-                                            name = newName
-                                            errorMessage = ""
+                                            .weight(1f)
+                                            .padding(start=8.dp, end = 8.dp),
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = ButtonDefaults.buttonColors(MaterialTheme.colorScheme.error),
+                                        elevation = ButtonDefaults.buttonElevation(6.dp)
+                                    ) {
+                                        Text(text = "Logout", color = Color.White)
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(24.dp))
+
+                                // welcome - column - card
+                                Card(
+                                    shape = RoundedCornerShape(16.dp),
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(12.dp),
+                                    colors = CardDefaults.cardColors(Color(0xFFFFE5B4)) // Peach color
+                                ) {
+
+                                    // welcome - column - card - box [notes section]
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier.padding(16.dp)
+                                    ) {
+
+                                        // welcome - column - card - box - text
+                                        Text(
+                                            text = "Write Your Important Notes Here",
+                                            color = Color(0xFF4A4A4A),
+                                            style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        2 -> {
+
+                            // Signup
+                            Scaffold(
+
+                                // Signup - topBar
+                                topBar = {
+                                    TopAppBar(
+                                        title = {
+
+                                            // Signup - topBar - row
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+
+                                                // Signup - topBar - row - icon
+                                                Icon(
+                                                    painter = painterResource(id = R.drawable.logo),
+                                                    contentDescription = "App Logo",
+                                                    tint = Color.Unspecified,
+                                                    modifier = Modifier
+                                                        .size(24.dp)
+                                                        .clip(CircleShape)
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+
+                                                // Signup - topBar - row - text
+                                                Text("366pi", color = Color.White)
+                                            }
                                         },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        label = { Text(text = "Enter your Name") }
+                                        colors = TopAppBarDefaults.topAppBarColors(
+                                            containerColor = MaterialTheme.colorScheme.primary,
+                                            titleContentColor = Color.White
+                                        )
                                     )
+                                }
+                            ) { paddingValues ->
+                                // Signup - column
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(paddingValues)
+                                ) {
+                                    Spacer(modifier = Modifier.height(16.dp))
+
+                                    // Signup - column - row
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 16.dp)
+                                    ) {
+
+                                        // Signup - column - row - askName
+                                        OutlinedTextField(
+                                            value = name,
+                                            onValueChange = {
+                                                scope.launch {
+                                                    if (namePattern.matches(it)) {
+                                                        name = it
+                                                    } else {
+                                                        errorMessage =
+                                                            "Name cannot contain special characters or numbers"
+                                                    }
+                                                }
+                                            },
+                                            label = { Text("Full Name") },
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Spacer(modifier = Modifier.width(16.dp))
+
+                                        // Signup - column - row - askUsername
+                                        OutlinedTextField(
+                                            value = username,
+                                            onValueChange = { newUsername ->
+                                                username = newUsername
+                                            },
+                                            label = { Text("Username") },
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
 
                                     Spacer(modifier = Modifier.height(16.dp))
 
-                                    Text(
-                                        text = "Username",
-                                        fontSize = 24.sp,
-                                        modifier = Modifier
-                                            .padding(start = 6.dp)
-                                            .fillMaxWidth()
-                                            .align(Alignment.Start)
-                                    )
-                                    TextField(
-                                        value = username,
-                                        onValueChange = { newUsername ->
-                                            username = newUsername
-                                            errorMessage = ""
-                                        },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        label = { Text(text = "Enter your Username") }
-                                    )
-
-                                    Spacer(modifier = Modifier.height(16.dp))
-
-                                    // Asking for password
-                                    Text(
-                                        text = "Password",
-                                        fontSize = 24.sp,
-                                        modifier = Modifier
-                                            .padding(start = 6.dp)
-                                            .fillMaxWidth()
-                                            .align(Alignment.Start)
-                                    )
-                                    TextField(
+                                    // Signup - column - askPassword
+                                    OutlinedTextField(
                                         value = password,
-                                        onValueChange = { newPassword ->
-                                            password = newPassword
-                                            errorMessage = ""
-                                        },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        label = { Text(text = "Enter your Password") },
-                                        visualTransformation = PasswordVisualTransformation()
+                                        onValueChange = { newPassword -> password = newPassword },
+                                        label = { Text("Password") },
+                                        visualTransformation = PasswordVisualTransformation(),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp)
                                     )
-
                                     Spacer(modifier = Modifier.height(16.dp))
 
-                                    // Asking for password confirmation
-                                    Text(
-                                        text = "Confirm Password",
-                                        fontSize = 24.sp,
-                                        modifier = Modifier
-                                            .padding(start = 6.dp)
-                                            .fillMaxWidth()
-                                            .align(Alignment.Start)
-                                    )
-                                    TextField(
+                                    // Signup - column - askConfirmPassword
+                                    OutlinedTextField(
                                         value = confirmPassword,
-                                        onValueChange = { newPassword ->
-                                            confirmPassword = newPassword
+                                        onValueChange = { newConfirmPassword ->
+                                            confirmPassword = newConfirmPassword
                                         },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        label = { Text(text = "Enter your Password") }
-                                    )
-
-                                    Spacer(modifier = Modifier.height(16.dp))
-
-                                    // DOB Picker
-                                    Text(
-                                        text = "Enter D.O.B",
-                                        fontSize = 24.sp,
+                                        label = { Text("Confirm Password") },
                                         modifier = Modifier
-                                            .padding(start = 6.dp)
                                             .fillMaxWidth()
-                                            .align(Alignment.Start)
+                                            .padding(horizontal = 16.dp)
                                     )
-                                    TextField(
-                                        value = dob,
-                                        onValueChange = { newDob ->
-                                            dob = newDob
-                                            errorMessage = ""
-                                        },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        label = { Text(text = "dd/mm/yyyy") }
-                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
 
+                                    // Signup - column - errorMessage
                                     if (errorMessage.isNotEmpty()) {
                                         Text(
                                             text = errorMessage,
                                             color = Color.Red,
-                                            modifier = Modifier.padding(vertical = 8.dp)
+                                            modifier = Modifier.padding(horizontal = 16.dp)
                                         )
                                     }
+                                    Spacer(modifier = Modifier.height(20.dp))
 
-                                    // vertical spacing
-                                    Spacer(modifier = Modifier.height(24.dp))
-
-                                    // sign up button
-                                    Button(
-                                        onClick = {
-                                            if (name.isEmpty()){
-                                                errorMessage = "Please enter the name"
-                                            }
-                                            else if (password.isEmpty()){
-                                                errorMessage = "Password cannot be empty"
-                                            }
-                                            else if (confirmPassword != password) {
-                                                errorMessage = "Please enter the same password in both sections"
-                                            }
-                                            else{
-                                                pageState.value=1
-                                            }
-                                        },
-                                        modifier = Modifier.fillMaxWidth()
+                                    // Signup - column - box
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp),
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        Text(text = "Sign Up")
-                                    }
 
+                                        // Signup - column - box - row
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceEvenly,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+
+                                            // Signup - column - box - row - box1
+                                            Box(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .padding(end = 8.dp) // Adjust the padding as needed
+                                            ) {
+
+                                                // Signup - column - box - row - box1 - loginButton
+                                                Button(
+                                                    onClick = {
+                                                        pageState.intValue = 0
+                                                    },
+                                                    modifier = Modifier.fillMaxWidth()
+                                                ) {
+                                                    Text(text = "Login")
+                                                }
+                                            }
+
+                                            // Signup - column - box - row - box2
+                                            Box(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .padding(start = 8.dp)
+                                            ) {
+
+                                                // Signup - column - box - row - box2 - signupButton
+                                                Button(
+                                                    onClick = {
+                                                        scope.launch {
+                                                            if (name.isEmpty()) {
+                                                                errorMessage = "Name can't be empty"
+                                                                return@launch
+                                                            }
+                                                            else if (username.isEmpty()) {
+                                                                errorMessage = "Username can't be empty"
+                                                                return@launch
+                                                            }
+                                                            else if (password.isEmpty()) {
+                                                                errorMessage = "Password can't be empty"
+                                                                return@launch
+                                                            }
+                                                            else if (password != confirmPassword) {
+                                                                errorMessage =
+                                                                    "Passwords do not match"
+                                                                return@launch
+                                                            }
+
+                                                            val newUser = User(
+                                                                username = username,
+                                                                name = name,
+                                                                password = password
+                                                            )
+                                                            try {
+                                                                userDao.insertUser(newUser)
+                                                                pageState.intValue = 1
+                                                                errorMessage = ""
+                                                            } catch (e: Exception) {
+                                                                errorMessage =
+                                                                    "Username already exists"
+                                                            }
+                                                        }
+                                                    },
+                                                    modifier = Modifier.fillMaxWidth()
+                                                ) {
+                                                    Text("Sign Up")
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }

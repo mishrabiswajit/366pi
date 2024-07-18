@@ -1,6 +1,8 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.jetbrains.kotlin.android)
+    alias(libs.plugins.compose.compiler)
+    id("com.google.devtools.ksp") version "2.0.0-1.0.21"
 }
 
 android {
@@ -11,8 +13,8 @@ android {
         applicationId = "com.example.a366pi"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -50,23 +52,28 @@ android {
 }
 
 dependencies {
-//    val navVersion = "2.7.7"
+    implementation(libs.androidx.constraintlayout.compose)
+    val room_version = "2.5.0"
+    implementation("androidx.room:room-runtime:$room_version")
+    implementation("androidx.room:room-ktx:$room_version")
+    ksp("androidx.room:room-compiler:$room_version")
 
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.androidx.activity.compose)
+    // Coroutines
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.5.2")
+
+    implementation("androidx.compose.material:material-icons-extended:1.0.0")
+
+
+    // Other dependencies
+    implementation("androidx.core:core-ktx:1.6.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.3.1")
+    implementation("androidx.activity:activity-compose:1.3.1")
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
-
-
-//    implementation("androidx.navigation:navigation-compose:$navVersion")
-//    implementation("androidx.compose.material:material:1.4.3")
-//    implementation("androidx.compose.material3:material3:1.1.1")
-//    implementation("com.google.android.material:material:1.9.0")
-    implementation("io.coil-kt:coil-compose:2.0.0")
+    implementation(libs.coil.compose)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
